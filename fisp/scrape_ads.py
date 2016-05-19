@@ -123,16 +123,14 @@ def strain_soup(soup):
     tag.extract()
   sp_tag.extract()
 
-if __name__ == '__main__':
-
-  # Parse command line arguments and provide help.
-  desc_text = 'Scrape text from 2016 presidential campaign ads at %s.' % main_url
-  parser = argparse.ArgumentParser(description=desc_text)
-  parser.add_argument('campaign', help='Name of the presidential campaign to scrape.')
-  parser.add_argument('-f', '--file', help='Filename to store result in.') 
-  parser.add_argument('-o', '--output', help='Dump output to terminal.', action='store_true')
-  args = parser.parse_args()
-
+def extract_ads(campaign, file_name=None, dump_output=True):
+  """
+  Extract all ads for a named campaign.
+  @param campaign String campaign name.
+  @param file_name File name to store result in.
+  @param dump_output Boolean to dump output to terminal.
+  
+  """
   # Make soup.
   print 'Making soup...'
   f = urllib2.urlopen(main_url)
@@ -144,12 +142,12 @@ if __name__ == '__main__':
 
   # Extract ads for campaigns.
   print 'Finding campaign ads...'
-  urls = get_ads(soup, args.campaign) 
+  urls = get_ads(soup, campaign) 
   print 'Found %i ads for %s campaign.' % (len(urls), args.campaign)
 
   # Open output file.
-  if args.file:
-    f = open(args.file,'w')
+  if file_name:
+    f = open(file_name,'w')
 
   # Scraping ads.
   print 'Scraping campaign ads...'
@@ -161,15 +159,15 @@ if __name__ == '__main__':
     # Concatenate all content into one string for file output.
     total_content = ''
     for c in content:
-      total_content += c  + '==='
+      total_content += c  + ' '
 
     # Write to output file.
-    if args.file:
+    if file_name:
       f.write('%s\n%s\n%s\n%s\n' % (org, title, desc, total_content))
       f.write('='*40+'\n')
 
     # Write to terminal.
-    if args.output:
+    if dump_output:
       print '='*40
       print 'processed url: %s' % url[0]
       print 'organization: %s' % org
@@ -180,5 +178,26 @@ if __name__ == '__main__':
         print c  
         print '-'*40
       print '='*40
-       
+ 
+
+
+if __name__ == '__main__':
+
+  # Parse command line arguments and provide help.
+  desc_text = 'Scrape text from 2016 presidential campaign ads at %s.' % main_url
+  parser = argparse.ArgumentParser(description=desc_text)
+  parser.add_argument('campaign', help='Name of the presidential campaign to scrape.')
+  parser.add_argument('-f', '--file', help='Filename to store result in.') 
+  parser.add_argument('-o', '--output', help='Dump output to terminal.', action='store_true')
+  args = parser.parse_args()
+
+  try:
+    extract_ads(args.campaign, args.file, args.output)
+  except Exception as ex:
+    print 'Error extracting ads: %s.' % ex
+    print 'Exiting...'
+
+
+     
+
 
