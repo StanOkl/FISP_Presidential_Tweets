@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[5]:
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import LinearSVC
@@ -12,17 +12,18 @@ from sklearn.model_selection import cross_val_score
 from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier, BaggingClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.decomposition import TruncatedSVD
-from sklearn.cross_validation import train_test_split
+from sklearn.model_selection import train_test_split
 from sklearn import metrics
 from nltk.stem.porter import PorterStemmer
 import nltk
 import pandas as pd
 import numpy as np
-# import re
+import sys
 import matplotlib.pylab as plt
+from importlib import reload
 
 
-# In[2]:
+# In[6]:
 
 ## functions for lexical analysis
 
@@ -55,26 +56,46 @@ def text2vec(full_text, use_stemmer=False):
 
 # 
 
+# In[7]:
+
+pd.options.display.float_format = '{:.2f}'.format
+
+
+# In[8]:
+
+#reload(sys)  
+#sys.setdefaultencoding('utf8')
+
+
 # # Step 1: Load the Data
 # Load "human-coded-tweets" into a pandas dataframe. Data preprocessing (convert to lower case, remove punctuation, remove screen names. etc) should be done before this step.
 
-# In[3]:
+# In[11]:
 
 stemmer = PorterStemmer()
 data = pd.DataFrame.from_csv('training_data.csv')
+
 # take the 'text' column from the dataframe, and 
 # convert the text to vectors
-full_text = data['text']
+full_text = data['text'].astype('U')
 text_vec = text2vec(full_text, use_stemmer=True)
+
+
+# In[15]:
+
+##Find the number of rows in the training data, reserve 725 test tweets
+nrows = len(full_text)
+train_end= nrows-725
+print(train_end)
 
 
 # # Step 2: Split the data
 # Split the data into a training set and a test set. Ideally the data should be shuffled before the split to avoid implicit bias in the dataset.
 
-# In[4]:
+# In[16]:
 
-pred_train = text_vec[0:6800,] # 6800 training tweets
-pred_test = text_vec[6800:,] # 725 test tweets
+pred_train = text_vec[0:train_end,] # 7638 training tweets as of 2-21-2018
+pred_test = text_vec[train_end:,] # 725 test tweets
 pred_matrix = np.zeros((725,18))
 
 
@@ -86,18 +107,15 @@ pred_matrix = np.zeros((725,18))
 
 # - Sentiment (Multinomial Naive Bayes); different alpha values would yield slightly different classification results
 
-# In[5]:
+# In[17]:
 
 key = 'Sentiment'
 alpha = 0.4
 
-###NEEDS UPDATING
-###training data has a different amount of rows than this which needs updating
-
 # real labels for the training set
-tar_train = data[key][0:6800,] 
+tar_train = data[key][0:train_end,] 
 # real labels for the test set
-tar_test = data[key][6800:,]
+tar_test = data[key][train_end:,]
 
 # specify the classification model
 clf = MultinomialNB(alpha=alpha, fit_prior=True, class_prior=None)
@@ -109,9 +127,9 @@ train_score = clf.score(pred_train, tar_train)
 y_pred = clf.predict(pred_test)
 
 # compute standard metrics
-test_accuracy = metrics.accuracy_score(tar_test, y_pred)
-class_report = metrics.classification_report(tar_test, y_pred)
-kappa = metrics.cohen_kappa_score(tar_test, y_pred)
+test_accuracy = metrics.accuracy_score(tar_test.values.astype(int), y_pred)
+class_report = metrics.classification_report(tar_test.values.astype(int), y_pred)
+kappa = metrics.cohen_kappa_score(tar_test.values.astype(int), y_pred)
 
 print(key)
 print('='*50)
@@ -124,15 +142,15 @@ print('\n')
 
 # - Political & Makes_a_Factual_or_Verifiable_Claim (Linear SVC)
 
-# In[6]:
+# In[18]:
 
 keys = ['Political', 'Makes_a_Factual_or_Verifiable_Claim']
 
 for key in keys: 
     # real labels for the training set
-    tar_train = data[key][0:6800,] 
+    tar_train = data[key][0:train_end,] 
     # real labels for the test set
-    tar_test = data[key][6800:,]
+    tar_test = data[key][train_end:,]
 
     # specify the classification model
     clf = LinearSVC(class_weight='balanced')
@@ -144,9 +162,9 @@ for key in keys:
     y_pred = clf.predict(pred_test)
 
     # compute standard metrics
-    test_accuracy = metrics.accuracy_score(tar_test, y_pred)
-    class_report = metrics.classification_report(tar_test, y_pred)
-    kappa = metrics.cohen_kappa_score(tar_test, y_pred)
+    test_accuracy = metrics.accuracy_score(tar_test.values.astype(int), y_pred)
+    class_report = metrics.classification_report(tar_test.values.astype(int), y_pred)
+    kappa = metrics.cohen_kappa_score(tar_test.values.astype(int), y_pred)
 
     print(key)
     print('='*50)
@@ -160,7 +178,7 @@ for key in keys:
 # - Ideology & Immigration & Macroeconomic & National_Security & 
 # Crime & Civil_Rights & Environment & Education & Health_Care (Bagging Classifier)
 
-# In[40]:
+# In[19]:
 
 max_samples=0.7
 max_features=0.8
@@ -169,9 +187,9 @@ keys = ['Ideology', 'Immigration', 'Macroeconomic', 'National_Security', 'Crime'
 
 for key in keys: 
     # real labels for the training set
-    tar_train = data[key][0:6800,] 
+    tar_train = data[key][0:train_end,] 
     # real labels for the test set
-    tar_test = data[key][6800:,]
+    tar_test = data[key][train_end:,]
 
     # specify the classification model
     clf = BaggingClassifier(LinearSVC(class_weight='balanced'), 
@@ -184,9 +202,9 @@ for key in keys:
     y_pred = clf.predict(pred_test)
 
     # compute standard metrics
-    test_accuracy = metrics.accuracy_score(tar_test, y_pred)
-    class_report = metrics.classification_report(tar_test, y_pred)
-    kappa = metrics.cohen_kappa_score(tar_test, y_pred)
+    test_accuracy = metrics.accuracy_score(tar_test.values.astype(int), y_pred)
+    class_report = metrics.classification_report(tar_test.values.astype(int), y_pred)
+    kappa = metrics.cohen_kappa_score(tar_test.values.astype(int), y_pred)
 
     print(key)
     print('='*50)
@@ -199,7 +217,7 @@ for key in keys:
 
 # - Governance & No_Policy_Content & Asks_for_Donation &  Asks_you_to_watch_something_share_something_follow_something & Misc & Expresses_an_Opinion (Bagging Classifier)
 
-# In[38]:
+# In[20]:
 
 max_samples=0.7
 max_features=0.8
@@ -209,9 +227,9 @@ keys = ['Governance', 'No_Policy_Content', 'Asks_for_Donation',
 
 for key in keys: 
     # real labels for the training set
-    tar_train = data[key][0:6800,] 
+    tar_train = data[key][0:train_end,] 
     # real labels for the test set
-    tar_test = data[key][6800:,]
+    tar_test = data[key][train_end:,]
 
     # specify the classification model
     clf = BaggingClassifier(LinearSVC(class_weight='balanced'),
@@ -224,9 +242,9 @@ for key in keys:
     y_pred = clf.predict(pred_test)
 
     # compute standard metrics
-    test_accuracy = metrics.accuracy_score(tar_test, y_pred)
-    class_report = metrics.classification_report(tar_test, y_pred)
-    kappa = metrics.cohen_kappa_score(tar_test, y_pred)
+    test_accuracy = metrics.accuracy_score(tar_test.values.astype(int), y_pred)
+    class_report = metrics.classification_report(tar_test.values.astype(int), y_pred)
+    kappa = metrics.cohen_kappa_score(tar_test.values.astype(int), y_pred)
 
     print(key)
     print('='*50)
@@ -240,24 +258,24 @@ for key in keys:
 # # Step Four: Final Classifications
 # Having the appropriate models and hyper-parameter settings, we can use the models to predict labels for the entire corpus of tweets. At this step, we take all 7525 human-coded-tweets as the training set, and the whole corpus as the test set.
 
-# In[7]:
+# In[22]:
 
 # load training data and convert to a vector
-train_data = pd.DataFrame.from_csv('ProcessedDataLowNoLinkNoPuncNoNames.csv')
-train_text = train_data['text']
+train_data = pd.DataFrame.from_csv('training_data.csv')
+train_text = train_data['text'].astype('U')
 vectorizer = TfidfVectorizer(tokenizer=tokenize,ngram_range=(1,3))
 pred_train = vectorizer.fit_transform(train_text)
 
 
-# In[8]:
+# In[23]:
 
 # load the full corpus and convert to a vector
 final_data = pd.DataFrame.from_csv('ProcessedFullCorpus.csv')
 final_text = final_data['text']
-pred_final = vectorizer.transform(final_text.values.astype('U'))
+pred_final = vectorizer.transform(final_text.values.astype('unicode'))
 
 
-# In[9]:
+# In[24]:
 
 # specify classification models and hyper-parameter settings
 alpha = 0.1
@@ -272,7 +290,7 @@ def runClassifiers(classifier, pred_train, tar_train, pred_final):
     elif classifier=='Bag':
         clf = BaggingClassifier(LinearSVC(class_weight='balanced'),
                                 max_samples=0.7, max_features=0.8)
-    clf.fit(pred_train,tar_train)
+    clf.fit(pred_train,tar_train.values.astype(int))
     print('fit successfully')
     y_class_final = clf.predict(pred_final)
     print('predict successfully')
@@ -283,14 +301,14 @@ classifiers = ['NB','SVC','Bag','Bag','Bag','Bag','Bag','Bag','Bag',
                'Bag','Bag','Bag','Bag','Bag','Bag','Bag','SVC','Bag']
 
 
-# In[10]:
+# In[25]:
 
 # obtain column names
 keys = [key for key in train_data if key != 'text']
 pred_matrix = np.zeros((len(final_data),18))
 
 
-# In[11]:
+# In[26]:
 
 # final classifications: save prediction results in a matrix
 for n, key in enumerate(keys):
@@ -301,29 +319,34 @@ for n, key in enumerate(keys):
     pred_matrix[:,n] = y_final
 
 
-# In[12]:
+# In[29]:
 
 # convert prediction matrix into dataframe
 final_df = pd.DataFrame(pred_matrix).astype(int)
 final_df.columns = keys
 
 
-# In[13]:
+# In[30]:
 
 final_df.sample(5)
 
 
-# In[15]:
+# In[31]:
 
 
 final_file = pd.concat([final_data.reset_index(drop=True), final_df], axis=1)
 
 
-# In[17]:
+# In[32]:
 
 # save prediction result to csv
-out_file = 'finalPrediction.csv'
+out_file = 'finalPredictionTest.csv'
 final_file.to_csv(out_file)
+
+
+# In[33]:
+
+list(final_file)
 
 
 # In[ ]:
