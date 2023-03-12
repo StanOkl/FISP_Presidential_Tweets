@@ -4,6 +4,9 @@ author:
   - Thad Kousser^[Professor, Department of Political Science, UC San Diego.] 
   - Stan Oklobdzija^[Assistant Professor, Department of Political Science, Tulane University.]"
 format: pdf
+header-includes:
+  - \usepackage{tabularx}
+  - \usepackage{booktabs}
 pdf-engine: pdflatex
 indent: "4m"
 linestretch: 2
@@ -15,6 +18,14 @@ abstract: |
 ---
 
 \newpage
+
+```{r load_packages, echo=F, message=F}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(irr)
+
+```
 
 ## Introduction
 
@@ -109,20 +120,141 @@ In @tbl-example_tweets, we provide examples tweets that we categorized as fact o
 [^7]: Because several of the topic areas created by the Policy Agendas Project -- agriculture, labor, energy, transportation, social welfare, housing, domestic commerce, technology, foreign trade, international affairs, public lands, culture -- feature zero or very few tweets, we consolidated this handful of tweets into related topic areas.
 
 
-|  **Is the Tweet a Factual Claim or an Opinion?**                                                                                                                                                 |                                    |
-|:-----------------------------------|:-----------------------------------|
-| **Factual Claim**                                                                                                                                                                                                     | **Opinion**                                                                                                          |
+###EXAMPLE TWEETS (TABLE 1) HERE
 
-| A top ten state for job creation. Wages growing faster than the nation. Record number of businesses.                                                                                                                  | In America, we lift each other up. We build bridges, not walls. We stand together because we're stronger together. |
-| In fact, single mothers earn \$19,000 dollars less per year than married mothers. #empoweredwomen #ceidinner                                                                                                          | Hillary Clinton doesn't have the strength or the stamina to MAKE AMERICA GREAT AGAIN! #AmericaFirst                |
-| Hundreds turned out this morning in Fairfax to hear Gov. Kasich's message of strength and optimism.In America, we lift each other up. We build bridges, not walls. We stand together because we're stronger together. | I am the only one who stood up to 100K protesters, stood up to the big union bosses. I'll stand up to Washington.     |
-
-: Examples of Variables and Tweets in Each Category {#tbl-example_tweets}
 
 How often did coders agree on their categorization when members of our research team independently coded the same tweets? In Table \@ref(tab:YYYY), we report measures of intercoder reliability for all of our variables, demonstrating generally strong levels of agreement. This reliability analysis is based on a set of 3,634 tweets, which we assigned to overlapping pairs of coders so that each coders and then the Cohen's kappa and Krippendorff's alpha, measures of how much more likely the researchers are to agree than we would expect by pure chance. Our rates of agreement range from 72% on our three-category sentiment measure to near perfect agreement on our policy areas, with the Cohen's kappa measures ranging from "fair" to "almost perfect" agreement levels for all but one of our variables[^8].
 
 [^8]: For our key measure of fact versus opinion, the coders agreed 75% of the time. While imperfect, this is a relatively high score for a new and inherently subjective concept to measure. The kappa of 0.49, indicates a "moderate" level of agreement, according to [@landis_1977, p. 165]. Is this strong enough? According to [@hallgren_2012, p.6], "acceptable IRR estimates will vary depending on the study methods and the research question." Importantly, we use the factual claim versus opinion categorization as an independent variable in our analyses. Any random measurement error in it will lead to attenuation bias in our models [@stefanski_2000], understating the true impact of opinion. The imperfect measurement of this concept, then, should make us more confident in our later findings about its impact on engagement.
 
 Our final step to creating our dataset was to use all of the 8,363 tweets that humans coded by hand to train machine learning algorithms. We began by holding out 725 of these as a final testing set, providing the check on the performance of these algorithms that we report in Table \@ref(tab:ZZZZZZ).
+
+
+We then “pre-processed” all of our tweets using standard methods for text analysis^[We stemmed words so that words like “tax” and “taxes” would be read interchangeably, we made all words into lower case, we removed URLs, and we deleted the Twitter handles of candidates from the text of tweets to concentrate our analysis on the content that the tweets contained.  We turned each tweet into a “term frequency-inverse document frequency” vector to highlight words that are used often in one tweet but rarely in others (see @colleoni_2014 for a similar application to Twitter), and allowed words and phrases to enter into our analysis as unigrams, bigrams, and trigrams (one-, two-, or three-word phrases).].  We trained algorithms^[ We used a standard set of text analysis algorithms, including linear support vector machines (which performed best for whether a tweet made a factual claim and whether it was political or not), multinomial negative binomial (which performed best for classifying sentiment), and the bagging classifier (which performed best for the remaining 14 variables).] on 80% of the tweets, allowing them to learn what words and phrases in a tweet corresponded to human categorizations of it as “fact” or “opinion,” etc.  We then tested the algorithms on the remaining 20% of the tweets, asking how often they could replicate the coding decisions made by humans.  We selected the best performing algorithms for each variable, trained them on all tweets in our training and testing set, and then performed the final tests on the 725 out-of-sample tweets that we report in Table \@ref(tab:XXXX).  We then used these algorithms to classify our entire set of about YYYYYYY tweets.     
+
+```{r, warning=F, message=F, echo=F}
+#| tbl-cap: "Measures of Intercoder Reliability: Humans Agreeing with Humans."
+#| label: tbl-irr
+####Measures of Intercoder Reliability: Humans Agreeing with Humans
+
+###get human coded tweets
+joined.2coders.data <- read_csv('dataverse/irr_training_tweets.csv')
+
+###
+df.tweets <- data.frame(joined.2coders.data[!is.na(joined.2coders.data$coder1.Sentiment) &
+                                              !is.na(joined.2coders.data$coder2.Sentiment),])
+
+df.tweets[is.na(df.tweets)] <- 0
+
+df.tweets <- df.tweets[df.tweets$src !="0",]
+
+###simple matches for topic matching
+
+var.names <- names(df.tweets[c(5:21)])
+
+##IRR loop
+
+counter = 0
+inter.rater.reliability <- NULL
+inter.rater.reliability <- data.frame(variable=as.character(0), pct=as.numeric(0),cohens.kappa=as.numeric(0), kripp.alpha=as.numeric(0),stringsAsFactors = F)
+
+for (i in var.names){
+  matches <- df.tweets[,5+counter]==df.tweets[,24+counter]
+  y <- length(matches[matches==TRUE])/length(matches)
+  inter.rater.reliability[counter+1,1] <- as.character(gsub("coder1.","",i))
+  inter.rater.reliability[counter+1,2] <- y
+  counter = counter +1
+}
+
+##cohen's kappa
+
+counter = 0
+for (i in var.names){
+  x <- kappa2(df.tweets[,c(5+counter,24+counter)], "unweighted")
+  inter.rater.reliability[counter+1,3] <- x$value
+  counter = counter +1
+}
+
+##krippendorfs alpha
+
+counter = 0
+for (i in var.names){
+  ka <- t(as.matrix(df.tweets[,c(5+counter, 24+counter)]))
+  ka.score <- ifelse(counter %in% c(1,3), kripp.alpha(ka, method="ordinal"), kripp.alpha(ka, method="nominal"))
+  ka.score <- kripp.alpha(ka, method="ordinal")
+  inter.rater.reliability[counter+1,4] <- ka.score$value
+  counter = counter +1
+}
+
+
+###rename variables, reorder rows and output table
+
+row_order <- c("Is the Tweet a Factual Claim or an Opinion?","Ideology (Liberal, Neutral, or Conservative)",
+               "Sentiment (Negative, Neutral, or Positive)","Is the Tweet Political or Personal?",
+               "Topic: Immigration","Topic: Macroeconomics",
+               "Topic: Defense","Topic: Law and Crime","Topic: Civil Rights","Topic: Environment",
+               "Topic: Education","Topic: Health","Topic: Government Operations",
+               "Topic: No Policy Content","Asks for a Donation?","Asks to Watch, Share, Or Follow?",
+               "Asks for Miscellaneous Action?")
+
+inter.rater.reliability %>% 
+  mutate(Name=c("Sentiment (Negative, Neutral, or Positive)","Is the Tweet Political or Personal?",
+                "Ideology (Liberal, Neutral, or Conservative)","Topic: Immigration","Topic: Macroeconomics",
+                "Topic: Defense","Topic: Law and Crime","Topic: Civil Rights","Topic: Environment",
+                "Topic: Education","Topic: Health","Topic: Government Operations",
+                "Topic: No Policy Content","Asks for a Donation?","Asks to Watch, Share, Or Follow?",
+                "Asks for Miscellaneous Action?","Is the Tweet a Factual Claim or an Opinion?"),
+         across(where(is.numeric), round,2)) %>%
+  rename("Agreement Rate"=pct,
+         "Cohen's Kappa"=cohens.kappa,
+         "Krippendorf's Alpha"=kripp.alpha) %>%
+  select(-variable) %>%
+  relocate(Name) %>%
+  slice(match(row_order, Name)) %>% 
+  knitr::kable(.,"latex", booktabs=T)%>%
+  kable_styling(latex_options = "scale_down")
+
+
+```
+
+
+@tbl-irr shows how reliably, or unreliably for a few cases, the algorithms performed.  The first column reports F1 scores, which averages the recall and precision of the categorizations.  The second column reports the Cohen’s kappa.  For fact versus opinion, the best performing algorithm (as judged by initial testing accuracy) replicated the human coding 75% of the time.  Our accuracy was slightly lower for the ideology and sentiment of tweets, but that is often the case when variables can take on three values, and the Cohen’s kappa figures show that the algorithms did much better than we would expect by chance alone.  Our final testing accuracy ranged from 83% to 99% for our other variables, although policy areas, Education and Government Operations, the Cohen’s kappa was low enough that we do not consider these sufficiently reliable variables to use in our analyses.
+
+
+In order to analyze the impact of a tweet’s content on audience engagement, we collected data on the number of “likes” (referred to as “favorites” before November 2015) and the number or retweets for each tweet, with our data on engagement beginning in November 2015.  In order to make this a rate of engagement that accounts for size of each candidate’s Twitter following, we used archival internet sources to record the number of followers for each candidate during the week that each tweet was created^[We compiled data on follower counts from Trackalytics.com, an online repository of social media data, and from the Internet Archive’s “Wayback Machine.” We gathered likes and retweet data from Twitter’s API once a week, and thus our engagement numbers reflect the number of likes or retweets a tweet had during the week after it was tweeted.]. By Election Day 2016, Twitter audiences ranged from over 13 million for Donald Trump, over 10 million for Hillary Clinton, and nearly four million for Bernie Sanders to approximately half a million for John Kasich and Mike Huckabee and 138,999 for Martin O’Malley.   
+
+
+#### TABLE 3 HERE
+
+
+## Results: Fact, Opinion, and Online Engagement 
+
+##### Fill in With Current Results
+
+
+## Conclusion
+
+
+Our study finds that politicians, especially the most successful ones, primarily provide opinions. These are more likely than factual claims to engage the political audience and more likely to spread virally through retweeting.  Candidates from both parties supply more opinions than facts, and online audiences on both sides of the aisle reveal their preference for opinion through their engagement.  Negative opinions garner the most retweets and likes, while positive opinions earn the least.  The feedback loop between candidate and their audiences suggest that, for better or worse, those who follow politicians on Twitter are getting what they demand: opinions. 
+
+
+We do not claim that our findings generalize to all campaign communications by candidates, or to the reactions of all voters.  In fact, @bode_2016 comparison between Twitter communications and campaign television advertisements shows they differ in their tone and content.  The style of rhetoric that politicians deploy on social media may well be distinct from what they use in stump speeches and in television ads, and the people who chose to follow them online are likely looking to hear different things than the general public.  Indeed, our theory is grounded in the idea that political discourse on Twitter is distinct from traditional civic discourse, driven by different incentives and desires.  But its rising prominence in elections around the world and especially in the current American presidency [@conway_2013; @stromer-galley_2014; @kreiss_2016; @kreiss_2016a] makes it vital to understand how politicians use it, how their audience responds, and how this supply and demand interact to shape an increasingly prominent form of civic discourse.   
+
+
+Does the prevalence of opinion in campaign tweets raise or lower the level of this discourse?  There are varying normative perspectives on this question. According to [@arendt_2006, p. 239] work on the role of factual truth and opinion in politics, those who use opinions have an inherent advantage over those who use facts. “[F]actual truth is no more self-evident than opinion,” and, what’s more, “the teller of factual truth is worse off than Plato’s philosopher – that his truth has no transcendent origin and possesses not even the relatively transcendent qualities of such political principles as freedom, justice, honor, and courage, all of which may inspire, and then become manifest in, human action.”  
+
+
+Opinion may inspire more human action, as our findings on audience engagement indicate.  Yet the fact that opinions generate more engagement than factual claims does not guarantee that they improve the quality of politics. [@stromer-galley_2014, p.2] argues that campaign use digital communication to interact with citizens only as means to serve their strategic ends, and that “presidential campaigns aim typically to circumvent interaction when it gives supports greater genuine participatory voice.”     
+
+
+An objection to the prevalence of opinion over factual claims in the digital political discourse is that it can deny citizens important information about facts and policies.  In her book Using Technology, Building Democracy: Digital Campaigning and the Construction of Citizenship, [@baldwin-phillip_2015, p. 102] has noted a “move away from policy,” in campaigns’ use of social media, where “messaging has moved away from providing information.”  Importantly, even the factual claims that candidates make on Twitter are not necessarily true.  We reviewed two prominent fact-checking sources, Politifact.com and the Washington Post’s fact-checking website, finding that a majority of the fact-checked tweets from both Donald Trump and Hillary Clinton were more misleading than true^[Using Politifact.com and washingtonpost.com/news/fact-checker/, we identified all the tweets in our dataset from either Donald Trump or Hillary Clinton that had been subjected to this scrutiny.  Of the 52 tweets that Politifact.com checked, four were coded as “True,” five as “Mostly True,” seven as “Half True,” and the remainder as “Mostly False” (14 tweets), “False” (13 tweets), or “Pants on Fire” (nine tweets).  The Washington Post investigated two of Clinton’s tweets and 223 tweets from Trump during the campaign and his presidency.  Each had one tweet categorized as completely true, with the rest earning an average of 2.05 Pinnochio noses. (on a scientific scale of zero to four noses, with zero – designated by Geppetto – indicating a true statement).  This exercise indicates that our reported rates of “factual claims” strongly overstates the number of facts that each presidential candidate injected into online discourse through Twitter.].  
+
+
+While the Twitter feeds of presidential candidates are clearly not the place to turn for reliable factual information, this is unlikely to be the reason why their audience chooses to follow them.  It is a taste for subjective worldviews, we argue, that drives people to follow politicians, and their patterns of engagement explored here bear that out.  The public demands opinions more than facts on Twitter, which candidates are perfectly willing to supply. 
+
+
+
+
+
 
 ## References
